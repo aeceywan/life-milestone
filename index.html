@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -18,6 +19,7 @@ body{margin:0;padding:24px;background:radial-gradient(circle at 18% 10%,rgba(10,
 .loginPanel h1{text-align:center;font-size:30px;margin:0}.loginText{text-align:center;margin:8px 0 24px;color:var(--muted);font-size:14px;line-height:1.6}
 .loginField{display:block;margin-bottom:14px}.loginField span{display:block;color:var(--muted);font-size:12px;margin:0 0 6px 2px}.loginField input{width:100%;height:46px;border:1px solid rgba(60,60,67,.18);border-radius:12px;background:rgba(255,255,255,.86);font:17px/1 inherit;color:var(--ink);outline:none;padding:0 13px}.loginField input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(0,122,255,.14)}
 .loginSubmit{width:100%;height:46px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-weight:700;box-shadow:0 10px 28px rgba(0,122,255,.24)}.loginSubmit:hover{background:#0071eb}.loginError{min-height:18px;margin:10px 0 0;color:#ff3b30;text-align:center;font-size:13px}
+.syncStatus{margin-left:auto;color:var(--muted);font-size:12px}
 .appShell{display:none}.unlocked .appShell{display:block}.unlocked .loginScreen{display:none}
 .wrap{max-width:1320px;margin:0 auto}
 .toolbar{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
@@ -79,6 +81,7 @@ table{border-collapse:separate;border-spacing:0;width:100%;min-width:1060px;tabl
     <span class="tag"><i class="dot" style="background:var(--flex)"></i>52岁弹性退休资格</span>
     <span class="tag"><i class="dot" style="background:var(--formal)"></i>55岁正式退休年龄</span>
     <span class="tag">点击月份记录事件；点击对勾切换状态</span>
+    <span class="syncStatus" id="syncStatus">未同步</span>
   </div>
   <div class="paper"><table id="grid"><thead><tr><th class="year">年份</th><th class="age">年龄</th><th class="month">1月</th><th class="month">2月</th><th class="month">3月</th><th class="month">4月</th><th class="month">5月</th><th class="month">6月</th><th class="month">7月</th><th class="month">8月</th><th class="month">9月</th><th class="month">10月</th><th class="month">11月</th><th class="month">12月</th></tr></thead><tbody></tbody></table></div>
   <div class="hint">说明：内容会保存在当前浏览器本地。关键节点月份已作为默认大事件放入表格；你可以在任意月份记录旅行、家人纪念日、项目节点、健康变化或任何真正属于你的人生事件。</div>
@@ -87,14 +90,21 @@ table{border-collapse:separate;border-spacing:0;width:100%;min-width:1060px;tabl
 <div class="editor" id="editor" aria-hidden="true"></div>
 <script>
 const CONFIG={birth:{y:1985,m:9,d:18},workStart:{y:2009,m:7,d:13},socialStart:{y:2009,m:12},lastPaid:{y:2026,m:4},endYear:2040,flex:{y:2037,m:9,d:18},formal:{y:2040,m:9,d:18},storageKey:"alisa_life_milestone_v1"};
-const LOGIN={user:"Alisa",passwords:["'","’"]};
+const SUPABASE_CONFIG={url:"https://aftsxpjmmaszaxousucj.supabase.co",key:"sb_publishable_h4srjdcNSUd28DCMUBWHpg_-grYOczh"};
+const AUTH_USER={username:"Alisa",email:"alisa@life-milestone.local"};
 const COLORS=['#d97745','#4d8b57','#4c73b8','#7a5ab8','#c05f8f','#5f8f89','#b88734'];
+let currentUser=null;
+let accessToken=null;
 function key(y,m){return `${y}-${String(m).padStart(2,"0")}`}
 function mi(y,m){return y*12+m}
 function load(){try{return JSON.parse(localStorage.getItem(CONFIG.storageKey)||'{"checks":{},"notes":{}}')}catch(e){return {checks:{},notes:{}}}}
 function save(s){localStorage.setItem(CONFIG.storageKey,JSON.stringify(s))}
+function setSyncStatus(text){const el=document.getElementById('syncStatus'); if(el)el.textContent=text}
 function ageAtYear(y){return y-CONFIG.birth.y}
 function autoChecked(y,m){return mi(y,m)>=mi(CONFIG.socialStart.y,CONFIG.socialStart.m)&&mi(y,m)<=mi(CONFIG.lastPaid.y,CONFIG.lastPaid.m)}
+function parseKey(k){const [y,m]=k.split('-').map(Number); return {y,m}}
+function monthDate(k){return `${k}-01`}
+function keyFromDate(date){return date.slice(0,7)}
 function monthEvent(y,m){
  if(y===2029&&m===11)return {cls:'social',txt:'社保缴纳满20年'};
  if(y===2037&&m===9)return {cls:'flex',txt:'52岁弹性退休资格'};
@@ -135,7 +145,7 @@ function render(useAuto=false){
    td.dataset.key=k; td.dataset.checked=checked?'1':'0';
    const events=[...(ev?[ev]:[]),...userEvents.map((txt,i)=>({txt,color:COLORS[i%COLORS.length]}))];
    td.innerHTML=`<div class="monthNo"><span>${m}月</span><button class="check" type="button" aria-label="切换${k}状态">${checked?'✓':''}</button></div>${eventHTML(events)}`;
-   td.addEventListener('click',e=>{if(e.target.classList.contains('check')){const st=load(); st.checks[k]=!(td.dataset.checked==='1'); save(st); render(false); return} openEditor(td,y,m)});
+   td.addEventListener('click',e=>{if(e.target.classList.contains('check')){const st=load(); st.checks[k]=!(td.dataset.checked==='1'); save(st); syncMonth(k,st); render(false); return} openEditor(td,y,m)});
    tr.appendChild(td);
   }
   tbody.appendChild(tr);
@@ -151,49 +161,124 @@ function openEditor(cell,y,m){
 function rowHTML(value,i){
  return `<div class="eventRow"><span class="eventDot" style="background:${COLORS[i%COLORS.length]}"></span><textarea data-index="${i}" placeholder="这一月发生了什么？">${escapeHTML(value)}</textarea></div>`;
 }
-function saveEditor(){
+function saveEditor(sync=false){
  const editor=document.getElementById('editor'), k=editor.dataset.key; if(!k)return;
  const st=load(), values=[...editor.querySelectorAll('textarea')].map(t=>t.value.trim()).filter(Boolean);
  if(!st.notes)st.notes={};
  if(values.length)st.notes[k]=values; else delete st.notes[k];
  save(st);
+ if(sync)syncMonth(k,st);
 }
 function closeEditor(){const editor=document.getElementById('editor'); editor.classList.remove('open'); editor.setAttribute('aria-hidden','true'); editor.dataset.key=''}
-function unlock(){
+async function unlock(){
  document.body.classList.add('unlocked');
  document.getElementById('loginPass').value='';
  updateStats();
  render(false);
+ await loadRemoteMilestones();
+ render(false);
 }
 function setupLogin(){
  const form=document.getElementById('loginForm'), pass=document.getElementById('loginPass'), error=document.getElementById('loginError');
- document.getElementById('loginUser').value=LOGIN.user;
+ document.getElementById('loginUser').value=AUTH_USER.username;
  pass.focus();
  pass.addEventListener('keydown',e=>{
   if(e.key==='Enter'){e.preventDefault(); form.requestSubmit()}
  });
- form.addEventListener('submit',e=>{
+ form.addEventListener('submit',async e=>{
   e.preventDefault();
-  if(LOGIN.passwords.includes(pass.value)){error.textContent=''; unlock(); return}
-  error.textContent='密码不对，再试一次。';
+  error.textContent='';
+  if(document.getElementById('loginUser').value!==AUTH_USER.username){error.textContent='用户名不可用。'; return}
+  try{
+   const data=await signInWithPassword(pass.value);
+   accessToken=data.access_token;
+   currentUser=data.user;
+   await unlock();
+   return;
+  }catch(authError){
+   error.textContent='登录失败，请检查密码。';
+  }
   pass.value='';
   pass.focus();
  });
+}
+async function supabaseRequest(path,options={}){
+ const headers={
+  apikey:SUPABASE_CONFIG.key,
+  'Content-Type':'application/json',
+  ...(accessToken?{Authorization:`Bearer ${accessToken}`}:{})
+ };
+ const res=await fetch(`${SUPABASE_CONFIG.url}${path}`,{
+  ...options,
+  headers:{...headers,...(options.headers||{})}
+ });
+ if(!res.ok)throw new Error(await res.text());
+ if(res.status===204)return null;
+ const text=await res.text();
+ return text?JSON.parse(text):null;
+}
+function signInWithPassword(password){
+ return supabaseRequest('/auth/v1/token?grant_type=password',{
+  method:'POST',
+  body:JSON.stringify({email:AUTH_USER.email,password})
+ });
+}
+async function loadRemoteMilestones(){
+ if(!accessToken||!currentUser){setSyncStatus('离线模式'); return}
+ setSyncStatus('同步中...');
+ let data=[];
+ try{
+  data=await supabaseRequest(`/rest/v1/milestones?select=milestone_month,is_checked,events&user_id=eq.${currentUser.id}`);
+ }catch(error){
+  setSyncStatus('云端读取失败，已使用本地数据');
+  return;
+ }
+ const st=load();
+ if(!st.checks)st.checks={};
+ if(!st.notes)st.notes={};
+ data.forEach(row=>{
+  const k=keyFromDate(row.milestone_month);
+  st.checks[k]=!!row.is_checked;
+  if(Array.isArray(row.events)&&row.events.length)st.notes[k]=row.events.map(v=>String(v)).filter(Boolean);
+  else delete st.notes[k];
+ });
+ save(st);
+ setSyncStatus('已同步');
+}
+async function syncMonth(k,st=load()){
+ if(!accessToken||!currentUser){setSyncStatus('已保存到本地'); return}
+ const {y,m}=parseKey(k), isChecked=st.checks&&st.checks[k]!==undefined?st.checks[k]:autoChecked(y,m), events=customEvents(st,k);
+ setSyncStatus('同步中...');
+ try{
+  await supabaseRequest('/rest/v1/milestones?on_conflict=user_id,milestone_month',{
+   method:'POST',
+   headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+   body:JSON.stringify({
+    user_id:currentUser.id,
+    milestone_month:monthDate(k),
+    is_checked:!!isChecked,
+    events
+   })
+  });
+  setSyncStatus('已同步');
+ }catch(error){
+  setSyncStatus('云端同步失败，已保存到本地');
+ }
 }
 function updateStats(){
  const today=new Date(); today.setHours(0,0,0,0); const work=new Date(CONFIG.workStart.y,CONFIG.workStart.m-1,CONFIG.workStart.d); const flex=new Date(CONFIG.flex.y,CONFIG.flex.m-1,CONFIG.flex.d); const day=86400000;
  document.getElementById('subtitle').textContent=`出生：1985年9月18日｜当前工龄：${workTenureText(today)}｜社保推算起始：2009年12月｜已缴至：2026年4月｜显示到55岁`;
  document.getElementById('daysToFlex').textContent=Math.max(0,Math.ceil((flex-today)/day)).toLocaleString('zh-CN')+'天';
 }
-document.getElementById('autoFill').onclick=()=>{const st=load(); st.checks={}; save(st); render(true)};
+document.getElementById('autoFill').onclick=()=>{const st=load(); st.checks={}; save(st); render(true); setSyncStatus('已保存到本地')};
 document.getElementById('editor').addEventListener('input',e=>{
  if(e.target.tagName!=='TEXTAREA')return;
  const rows=e.currentTarget.querySelector('.editorRows'), textareas=[...rows.querySelectorAll('textarea')];
  if(textareas[textareas.length-1].value.trim())rows.insertAdjacentHTML('beforeend',rowHTML('',textareas.length));
- saveEditor();
+ saveEditor(false);
 });
-document.getElementById('editor').addEventListener('click',e=>{if(e.target.classList.contains('editorClose')){saveEditor(); closeEditor(); render(false)}});
-document.addEventListener('click',e=>{const editor=document.getElementById('editor'); if(!editor.classList.contains('open'))return; if(editor.contains(e.target)||e.target.closest('.cell'))return; saveEditor(); closeEditor(); render(false)});
+document.getElementById('editor').addEventListener('click',e=>{if(e.target.classList.contains('editorClose')){saveEditor(true); closeEditor(); render(false)}});
+document.addEventListener('click',e=>{const editor=document.getElementById('editor'); if(!editor.classList.contains('open'))return; if(editor.contains(e.target)||e.target.closest('.cell'))return; saveEditor(true); closeEditor(); render(false)});
 setupLogin();
 </script>
 </body>
