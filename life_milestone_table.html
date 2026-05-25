@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>人生 Milestone 表</title>
+<style>
+:root{
+  --bg1:#f4efe7;--bg2:#fbfaf7;--paper:#fffdf8;--ink:#25313b;--muted:#71808c;--line:#34424d;
+  --done:#eaf4ec;--future:#fffdf8;--manual:#fff6dd;--social:#f7dfa7;--flex:#e7efff;--formal:#efe7ff;
+  --accent:#d97745;--green:#4d8b57;--blue:#4c73b8;--purple:#7a5ab8;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;background:linear-gradient(135deg,var(--bg1),var(--bg2));font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;color:var(--ink)}
+.wrap{max-width:1480px;margin:0 auto}
+.toolbar{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+h1{margin:0;font-size:30px;letter-spacing:1px}.subtitle{margin:8px 0 0;color:var(--muted);font-size:14px;line-height:1.7}.actions{display:flex;gap:8px;flex-wrap:wrap}
+button{border:1px solid #d8cfc1;background:#fff;border-radius:13px;padding:10px 14px;font-size:14px;cursor:pointer;color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.04)}button:hover{background:#faf7f1}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:12px;margin-bottom:16px}.card{background:rgba(255,255,255,.76);border:1px solid #ded5c8;border-radius:18px;padding:14px 15px}.card span{font-size:13px;color:var(--muted)}.card b{display:block;font-size:22px;margin-top:6px;line-height:1.2}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px;color:var(--muted);font-size:13px}.tag{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.7);border:1px solid #e1d8cc;border-radius:999px;padding:7px 10px}.dot{width:13px;height:13px;border-radius:4px;border:1px solid rgba(0,0,0,.12)}
+.paper{background:var(--paper);border:2px solid var(--line);box-shadow:0 16px 46px rgba(40,34,28,.13);padding:16px;overflow:auto;border-radius:8px}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:1380px;table-layout:fixed}th,td{border-right:1.5px solid var(--line);border-bottom:1.5px solid var(--line)}thead th{position:sticky;top:0;z-index:2;background:#f2eee6;height:42px;font-size:13px;border-top:1.5px solid var(--line)}th:first-child,td:first-child{border-left:1.5px solid var(--line)}
+.year{width:68px;text-align:center;font-weight:800;background:#f8f5ee}.age,.work{width:58px;text-align:center;background:#fbf8f1;font-size:13px}.remark{width:320px;padding:10px 12px;font-size:13px;line-height:1.45;background:#fffaf0}
+.month{width:74px;text-align:center}.cell{height:72px;vertical-align:top;background:var(--future);cursor:pointer;position:relative;padding:6px 5px}.cell.done{background:var(--done)}.cell.manual{box-shadow:inset 0 0 0 3px rgba(217,119,69,.25)}.cell.social{background:var(--social)!important}.cell.flex{background:var(--flex)!important}.cell.formal{background:var(--formal)!important}.cell.today{outline:3px solid rgba(217,119,69,.45);outline-offset:-4px}
+.monthNo{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}.check{font-size:16px;font-weight:800;color:#34533a}.eventMark{font-size:10px;font-weight:800;margin-top:4px;line-height:1.2}.eventMark.social{color:#8a5b00}.eventMark.flex{color:var(--blue)}.eventMark.formal{color:var(--purple)}
+.note{margin-top:4px;min-height:30px;font-size:12px;line-height:1.25;text-align:left;outline:none;word-break:break-word;color:#28343d}.note:empty:before{content:"添加大事";color:#b7aea2}.note:focus{background:rgba(255,255,255,.6);border-radius:6px;padding:2px}
+.remark .green{color:var(--green);font-weight:800}.remark .blue{color:var(--blue);font-weight:800}.remark .purple{color:var(--purple);font-weight:800}.hint{margin-top:12px;color:var(--muted);font-size:13px;line-height:1.7}
+@media(max-width:760px){body{padding:12px}h1{font-size:24px}.stats{grid-template-columns:1fr 1fr}.paper{padding:10px}button{padding:9px 12px}}
+@media print{body{background:#fff;padding:0}.toolbar,.stats,.legend,.hint{display:none}.paper{box-shadow:none;border:1px solid #000;padding:6px;border-radius:0}table{min-width:0}th{height:28px}.cell{height:48px;padding:3px}.note{font-size:9px}.month{width:52px}.remark{width:220px;font-size:10px}.eventMark{font-size:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    <div>
+      <h1>人生 Milestone 表</h1>
+      <div class="subtitle">出生：1985年9月18日｜入职：2009年7月13日｜社保推算起始：2009年12月｜已缴至：2026年4月｜显示到55岁</div>
+    </div>
+    <div class="actions">
+      <button id="autoFill">恢复自动勾选</button>
+      <button id="clearChecks">清空勾选</button>
+      <button id="clearNotes">清空手写备注</button>
+      <button onclick="window.print()">打印 / 存为PDF</button>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="card"><span>已工作天数</span><b id="workedDays">计算中</b></div>
+    <div class="card"><span>距离弹性退休</span><b id="daysToFlex">计算中</b></div>
+    <div class="card"><span>社保满20年</span><b>2029年11月</b></div>
+    <div class="card"><span>正式退休年龄</span><b>2040年9月</b></div>
+  </div>
+  <div class="legend">
+    <span class="tag"><i class="dot" style="background:var(--done)"></i>已过 / 已勾选</span>
+    <span class="tag"><i class="dot" style="background:var(--social)"></i>社保满20年</span>
+    <span class="tag"><i class="dot" style="background:var(--flex)"></i>52岁弹性退休资格</span>
+    <span class="tag"><i class="dot" style="background:var(--formal)"></i>55岁正式退休年龄</span>
+    <span class="tag">点击格子勾选；点“添加大事”可写字</span>
+  </div>
+  <div class="paper"><table id="grid"><thead><tr><th class="year">年份</th><th class="month">1月</th><th class="month">2月</th><th class="month">3月</th><th class="month">4月</th><th class="month">5月</th><th class="month">6月</th><th class="month">7月</th><th class="month">8月</th><th class="month">9月</th><th class="month">10月</th><th class="month">11月</th><th class="month">12月</th><th class="work">工龄</th><th class="age">年龄</th><th class="remark">年度备注</th></tr></thead><tbody></tbody></table></div>
+  <div class="hint">说明：内容会保存在当前浏览器本地。关键节点月份已单独高亮；你可以在任意月份格子里手动添加大事，比如旅行、换工作、买房、家人纪念日、项目里程碑等。</div>
+</div>
+<script>
+const CONFIG={birth:{y:1985,m:9,d:18},workStart:{y:2009,m:7,d:13},socialStart:{y:2009,m:12},lastPaid:{y:2026,m:4},endYear:2040,flex:{y:2037,m:9,d:18},formal:{y:2040,m:9,d:18},storageKey:"alisa_life_milestone_v1"};
+function key(y,m){return `${y}-${String(m).padStart(2,"0")}`}
+function mi(y,m){return y*12+m}
+function load(){try{return JSON.parse(localStorage.getItem(CONFIG.storageKey)||'{"checks":{},"notes":{}}')}catch(e){return {checks:{},notes:{}}}}
+function save(s){localStorage.setItem(CONFIG.storageKey,JSON.stringify(s))}
+function ageAtYear(y){return y-CONFIG.birth.y}
+function workYear(y){return Math.max(0,y-CONFIG.workStart.y+1)}
+function autoChecked(y,m){return mi(y,m)>=mi(CONFIG.socialStart.y,CONFIG.socialStart.m)&&mi(y,m)<=mi(CONFIG.lastPaid.y,CONFIG.lastPaid.m)}
+function monthEvent(y,m){
+ if(y===2029&&m===11)return {cls:'social',txt:'社保20年'};
+ if(y===2037&&m===9)return {cls:'flex',txt:'弹性退休'};
+ if(y===2040&&m===9)return {cls:'formal',txt:'正式退休'};
+ return null;
+}
+function remark(y){
+ const r={
+ 2009:'新手上班第一年，正式进入成年人副本',2010:'开始理解：工资不是白给的',2011:'工位坐稳了，心态还在磨合',2012:'打工技能点 +1，抗压值 +1',2013:'逐渐学会在忙乱里保持体面',2014:'开始发现：稳定也是一种能力',2015:'今天也没辞职，已经很厉害',2016:'经验开始变成底气',2017:'少一点内耗，多一点存款',2018:'工龄上涨，脾气尽量不涨',2019:'社保持续加载中，人生也在加载中',2020:'特殊年份，能稳住就已经赢了',2021:'专业值 +1，耐心值 +1',2022:'成年人没有容易二字，但有余额和经验',2023:'开始认真计算长期主义的回报',2024:'不是在熬，是在累计选择权',2025:'离自由更近一点，离焦虑远一点',2026:'截止4月已缴197个月，进度很扎实',2027:'保持健康，继续攒选择权',2028:'再坚持一年，社保20年就在眼前',2029:'<span class="green">2029｜社保缴纳满20年｜长期主义达成一个大节点</span>',2030:'满20年后的每一年，都更像给自己加安全垫',2031:'少开会，多活几年',2032:'不跟年轻人硬卷，开始靠经验赢',2033:'认真想想：退休后想过什么生活',2034:'开始为第二人生做预热',2035:'健康、现金流、好心情，都要盘一盘',2036:'弹性退休倒计时最后冲刺',2037:'<span class="blue">2037｜52岁｜弹性退休资格｜第一次拥有“不上班”的选择权</span>',2038:'自由测试版：可以继续，也可以慢慢撤',2039:'正式退休前最后一年，人生开始换挡',2040:'<span class="purple">2040｜55岁｜正式退休年龄｜人生自由正式版</span>'};
+ return r[y]||'';
+}
+function render(useAuto=false){
+ const s=useAuto?{checks:{},notes:load().notes}:load(); const tbody=document.querySelector('#grid tbody'); tbody.innerHTML=''; const now=new Date();
+ for(let y=CONFIG.workStart.y;y<=CONFIG.endYear;y++){
+  const tr=document.createElement('tr'); tr.insertAdjacentHTML('beforeend',`<td class="year">${y}</td>`);
+  for(let m=1;m<=12;m++){
+   const k=key(y,m), ev=monthEvent(y,m), checked=s.checks[k]!==undefined?s.checks[k]:autoChecked(y,m); const td=document.createElement('td');
+   td.className='cell '+(checked?'done ':'')+(s.checks[k]!==undefined?'manual ':'')+(ev?ev.cls+' ':'')+(y===now.getFullYear()&&m===now.getMonth()+1?'today':'');
+   td.dataset.key=k; td.dataset.checked=checked?'1':'0';
+   td.innerHTML=`<div class="monthNo"><span>${m}月</span><span class="check">${checked?'✓':''}</span></div>${ev?`<div class="eventMark ${ev.cls}">${ev.txt}</div>`:''}<div class="note" contenteditable="true" data-note="${k}"></div>`;
+   td.querySelector('.note').textContent=s.notes[k]||'';
+   td.addEventListener('click',e=>{if(e.target.classList.contains('note'))return; const st=load(); st.checks[k]=!(td.dataset.checked==='1'); save(st); render(false)});
+   td.querySelector('.note').addEventListener('input',e=>{const st=load(); st.notes[k]=e.target.textContent.trim(); if(!st.notes[k])delete st.notes[k]; save(st)});
+   tr.appendChild(td);
+  }
+  tr.insertAdjacentHTML('beforeend',`<td class="work">${workYear(y)}年</td><td class="age">${ageAtYear(y)}岁</td><td class="remark">${remark(y)}</td>`); tbody.appendChild(tr);
+ }
+}
+function updateStats(){
+ const today=new Date(); today.setHours(0,0,0,0); const work=new Date(CONFIG.workStart.y,CONFIG.workStart.m-1,CONFIG.workStart.d); const flex=new Date(CONFIG.flex.y,CONFIG.flex.m-1,CONFIG.flex.d); const day=86400000;
+ document.getElementById('workedDays').textContent=Math.max(0,Math.floor((today-work)/day)+1).toLocaleString('zh-CN')+'天';
+ document.getElementById('daysToFlex').textContent=Math.max(0,Math.ceil((flex-today)/day)).toLocaleString('zh-CN')+'天';
+}
+document.getElementById('autoFill').onclick=()=>{const st=load(); st.checks={}; save(st); render(true)};
+document.getElementById('clearChecks').onclick=()=>{const st=load(); st.checks={}; save(st); render(false)};
+document.getElementById('clearNotes').onclick=()=>{if(confirm('确定清空所有手写大事吗？')){const st=load(); st.notes={}; save(st); render(false)}};
+updateStats(); render(false);
+</script>
+</body>
+</html>
