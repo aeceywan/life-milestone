@@ -1,4 +1,6 @@
 
+
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -89,7 +91,7 @@ table{border-collapse:separate;border-spacing:0;width:100%;min-width:1060px;tabl
 </div>
 <div class="editor" id="editor" aria-hidden="true"></div>
 <script>
-const CONFIG={birth:{y:1985,m:9,d:18},workStart:{y:2009,m:7,d:13},socialStart:{y:2009,m:12},lastPaid:{y:2026,m:4},endYear:2040,flex:{y:2037,m:9,d:18},formal:{y:2040,m:9,d:18},storageKey:"alisa_life_milestone_v1"};
+const CONFIG={birth:{y:1985,m:9,d:18},workStart:{y:2009,m:7,d:13},socialStart:{y:2009,m:12},endYear:2040,flex:{y:2037,m:9,d:18},formal:{y:2040,m:9,d:18},storageKey:"alisa_life_milestone_v1"};
 const SUPABASE_CONFIG={url:"https://aftsxpjmmaszaxousucj.supabase.co",key:"sb_publishable_h4srjdcNSUd28DCMUBWHpg_-grYOczh"};
 const AUTH_USER={username:"Alisa",email:"alisa@life-milestone.local"};
 const COLORS=['#d97745','#4d8b57','#4c73b8','#7a5ab8','#c05f8f','#5f8f89','#b88734'];
@@ -101,7 +103,9 @@ function load(){try{return JSON.parse(localStorage.getItem(CONFIG.storageKey)||'
 function save(s){localStorage.setItem(CONFIG.storageKey,JSON.stringify(s))}
 function setSyncStatus(text){const el=document.getElementById('syncStatus'); if(el)el.textContent=text}
 function ageAtYear(y){return y-CONFIG.birth.y}
-function autoChecked(y,m){return mi(y,m)>=mi(CONFIG.socialStart.y,CONFIG.socialStart.m)&&mi(y,m)<=mi(CONFIG.lastPaid.y,CONFIG.lastPaid.m)}
+function currentAutoEnd(today=new Date()){return {y:today.getFullYear(),m:today.getMonth()+1}}
+function currentMonthKey(today=new Date()){return key(today.getFullYear(),today.getMonth()+1)}
+function autoChecked(y,m){const end=currentAutoEnd(); return mi(y,m)>=mi(CONFIG.socialStart.y,CONFIG.socialStart.m)&&mi(y,m)<=mi(end.y,end.m)}
 function parseKey(k){const [y,m]=k.split('-').map(Number); return {y,m}}
 function monthDate(k){return `${k}-01`}
 function keyFromDate(date){return date.slice(0,7)}
@@ -176,6 +180,7 @@ async function unlock(){
  updateStats();
  render(false);
  await loadRemoteMilestones();
+ await ensureCurrentMonthAutoChecked();
  render(false);
 }
 function setupLogin(){
@@ -265,12 +270,25 @@ async function syncMonth(k,st=load()){
   setSyncStatus('云端同步失败，已保存到本地');
  }
 }
+async function ensureCurrentMonthAutoChecked(){
+ const k=currentMonthKey();
+ const {y,m}=parseKey(k);
+ if(!autoChecked(y,m))return;
+ const st=load();
+ if(!st.checks)st.checks={};
+ // 如果用户手动取消过当月，不覆盖；只在没有手动记录时自动补勾。
+ if(st.checks[k]!==undefined)return;
+ st.checks[k]=true;
+ save(st);
+ await syncMonth(k,st);
+}
 function updateStats(){
  const today=new Date(); today.setHours(0,0,0,0); const work=new Date(CONFIG.workStart.y,CONFIG.workStart.m-1,CONFIG.workStart.d); const flex=new Date(CONFIG.flex.y,CONFIG.flex.m-1,CONFIG.flex.d); const day=86400000;
- document.getElementById('subtitle').textContent=`出生：1985年9月18日｜当前工龄：${workTenureText(today)}｜社保推算起始：2009年12月｜已缴至：2026年4月｜显示到55岁`;
+ const autoEnd=currentAutoEnd(today);
+ document.getElementById('subtitle').textContent=`出生：1985年9月18日｜当前工龄：${workTenureText(today)}｜社保推算起始：2009年12月｜已自动勾选至：${autoEnd.y}年${autoEnd.m}月｜显示到55岁`;
  document.getElementById('daysToFlex').textContent=Math.max(0,Math.ceil((flex-today)/day)).toLocaleString('zh-CN')+'天';
 }
-document.getElementById('autoFill').onclick=()=>{const st=load(); st.checks={}; save(st); render(true); setSyncStatus('已保存到本地')};
+document.getElementById('autoFill').onclick=async()=>{const st=load(); st.checks={}; save(st); render(true); await ensureCurrentMonthAutoChecked(); render(false); setSyncStatus(accessToken?'已恢复自动勾选并同步':'已保存到本地')};
 document.getElementById('editor').addEventListener('input',e=>{
  if(e.target.tagName!=='TEXTAREA')return;
  const rows=e.currentTarget.querySelector('.editorRows'), textareas=[...rows.querySelectorAll('textarea')];
