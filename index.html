@@ -86,12 +86,12 @@ table{border-collapse:separate;border-spacing:0;width:100%;min-width:1060px;tabl
     <span class="syncStatus" id="syncStatus">未同步</span>
   </div>
   <div class="paper"><table id="grid"><thead><tr><th class="year">年份</th><th class="age">年龄</th><th class="month">1月</th><th class="month">2月</th><th class="month">3月</th><th class="month">4月</th><th class="month">5月</th><th class="month">6月</th><th class="month">7月</th><th class="month">8月</th><th class="month">9月</th><th class="month">10月</th><th class="month">11月</th><th class="month">12月</th></tr></thead><tbody></tbody></table></div>
-  <div class="hint">说明：内容会保存在当前浏览器本地。关键节点月份已作为默认大事件放入表格；你可以在任意月份记录旅行、家人纪念日、项目节点、健康变化或任何真正属于你的人生事件。</div>
+  <div class="hint">说明：登录后内容会同步到 Supabase，并保留本地缓存。关键节点月份已作为默认大事件放入表格；你可以在任意月份记录旅行、家人纪念日、项目节点、健康变化或任何真正属于你的人生事件。</div>
 </div>
 </div>
 <div class="editor" id="editor" aria-hidden="true"></div>
 <script>
-const CONFIG={birth:{y:1985,m:9,d:18},workStart:{y:2009,m:7,d:13},socialStart:{y:2009,m:12},endYear:2040,flex:{y:2037,m:9,d:18},formal:{y:2040,m:9,d:18},storageKey:"alisa_life_milestone_v1"};
+const CONFIG={birth:{y:1985,m:9,d:18},workStart:{y:2009,m:7,d:13},socialStart:{y:2009,m:12},endYear:2040,flex:{y:2037,m:9,d:18},formal:{y:2040,m:9,d:18},storageKey:"alisa_life_milestone_v1",autoPatchVersion:"auto_check_current_month_2026_06"};
 const SUPABASE_CONFIG={url:"https://aftsxpjmmaszaxousucj.supabase.co",key:"sb_publishable_h4srjdcNSUd28DCMUBWHpg_-grYOczh"};
 const AUTH_USER={username:"Alisa",email:"alisa@life-milestone.local"};
 const COLORS=['#d97745','#4d8b57','#4c73b8','#7a5ab8','#c05f8f','#5f8f89','#b88734'];
@@ -99,13 +99,34 @@ let currentUser=null;
 let accessToken=null;
 function key(y,m){return `${y}-${String(m).padStart(2,"0")}`}
 function mi(y,m){return y*12+m}
-function load(){try{return JSON.parse(localStorage.getItem(CONFIG.storageKey)||'{"checks":{},"notes":{}}')}catch(e){return {checks:{},notes:{}}}}
-function save(s){localStorage.setItem(CONFIG.storageKey,JSON.stringify(s))}
+function normalizeState(s){
+ if(!s||typeof s!=="object")s={};
+ if(!s.checks)s.checks={};
+ if(!s.notes)s.notes={};
+ if(!s.manualOffs)s.manualOffs={};
+ return s;
+}
+function load(){try{return normalizeState(JSON.parse(localStorage.getItem(CONFIG.storageKey)||'{"checks":{},"notes":{},"manualOffs":{}}'))}catch(e){return normalizeState({checks:{},notes:{},manualOffs:{}})}}
+function save(s){localStorage.setItem(CONFIG.storageKey,JSON.stringify(normalizeState(s)))}
 function setSyncStatus(text){const el=document.getElementById('syncStatus'); if(el)el.textContent=text}
 function ageAtYear(y){return y-CONFIG.birth.y}
-function currentAutoEnd(today=new Date()){return {y:today.getFullYear(),m:today.getMonth()+1}}
-function currentMonthKey(today=new Date()){return key(today.getFullYear(),today.getMonth()+1)}
+function currentAutoEnd(){const today=new Date(); return {y:today.getFullYear(),m:today.getMonth()+1}}
 function autoChecked(y,m){const end=currentAutoEnd(); return mi(y,m)>=mi(CONFIG.socialStart.y,CONFIG.socialStart.m)&&mi(y,m)<=mi(end.y,end.m)}
+function effectiveChecked(s,k,y,m){
+ s=normalizeState(s);
+ if(s.manualOffs&&s.manualOffs[k])return false;
+ if(autoChecked(y,m))return true;
+ return s.checks[k]===true;
+}
+function currentAutoEndText(){const end=currentAutoEnd(); return `${end.y}年${end.m}月`}
+function eachAutoMonth(callback){
+ const end=currentAutoEnd();
+ for(let y=CONFIG.socialStart.y;y<=Math.min(CONFIG.endYear,end.y);y++){
+  const startM=y===CONFIG.socialStart.y?CONFIG.socialStart.m:1;
+  const endM=y===end.y?end.m:12;
+  for(let m=startM;m<=endM;m++)callback(key(y,m),y,m);
+ }
+}
 function parseKey(k){const [y,m]=k.split('-').map(Number); return {y,m}}
 function monthDate(k){return `${k}-01`}
 function keyFromDate(date){return date.slice(0,7)}
@@ -140,16 +161,16 @@ function workTenureText(today=new Date()){
  return `${Math.max(0,fullYears)}年${Math.max(0,months)}个月`;
 }
 function render(useAuto=false){
- const s=useAuto?{checks:{},notes:load().notes}:load(); const tbody=document.querySelector('#grid tbody'); tbody.innerHTML=''; const now=new Date();
+ const base=load(); const s=useAuto?{checks:{},notes:base.notes,manualOffs:{}}:base; const tbody=document.querySelector('#grid tbody'); tbody.innerHTML=''; const now=new Date();
  for(let y=CONFIG.workStart.y;y<=CONFIG.endYear;y++){
   const tr=document.createElement('tr'); tr.insertAdjacentHTML('beforeend',`<td class="year">${y}</td><td class="age">${ageAtYear(y)}岁</td>`);
   for(let m=1;m<=12;m++){
-   const k=key(y,m), ev=monthEvent(y,m), checked=s.checks[k]!==undefined?s.checks[k]:autoChecked(y,m), userEvents=customEvents(s,k); const td=document.createElement('td');
-   td.className='cell '+(checked?'done ':'')+(s.checks[k]!==undefined?'manual ':'')+(ev?ev.cls+' ':'')+(y===now.getFullYear()&&m===now.getMonth()+1?'today':'');
+   const k=key(y,m), ev=monthEvent(y,m), checked=effectiveChecked(s,k,y,m), userEvents=customEvents(s,k); const td=document.createElement('td');
+   td.className='cell '+(checked?'done ':'')+((s.checks[k]!==undefined||s.manualOffs[k])?'manual ':'')+(ev?ev.cls+' ':'')+(y===now.getFullYear()&&m===now.getMonth()+1?'today':'');
    td.dataset.key=k; td.dataset.checked=checked?'1':'0';
    const events=[...(ev?[ev]:[]),...userEvents.map((txt,i)=>({txt,color:COLORS[i%COLORS.length]}))];
    td.innerHTML=`<div class="monthNo"><span>${m}月</span><button class="check" type="button" aria-label="切换${k}状态">${checked?'✓':''}</button></div>${eventHTML(events)}`;
-   td.addEventListener('click',e=>{if(e.target.classList.contains('check')){const st=load(); st.checks[k]=!(td.dataset.checked==='1'); save(st); syncMonth(k,st); render(false); return} openEditor(td,y,m)});
+   td.addEventListener('click',e=>{if(e.target.classList.contains('check')){const st=load(); const next=!(td.dataset.checked==='1'); if(next){delete st.manualOffs[k]; st.checks[k]=true}else{st.manualOffs[k]=true; st.checks[k]=false} save(st); syncMonth(k,st); render(false); return} openEditor(td,y,m)});
    tr.appendChild(td);
   }
   tbody.appendChild(tr);
@@ -180,7 +201,7 @@ async function unlock(){
  updateStats();
  render(false);
  await loadRemoteMilestones();
- await ensureCurrentMonthAutoChecked();
+ await ensureAutoCheckedThroughCurrentMonth();
  render(false);
 }
 function setupLogin(){
@@ -239,8 +260,6 @@ async function loadRemoteMilestones(){
   return;
  }
  const st=load();
- if(!st.checks)st.checks={};
- if(!st.notes)st.notes={};
  data.forEach(row=>{
   const k=keyFromDate(row.milestone_month);
   st.checks[k]=!!row.is_checked;
@@ -252,7 +271,7 @@ async function loadRemoteMilestones(){
 }
 async function syncMonth(k,st=load()){
  if(!accessToken||!currentUser){setSyncStatus('已保存到本地'); return}
- const {y,m}=parseKey(k), isChecked=st.checks&&st.checks[k]!==undefined?st.checks[k]:autoChecked(y,m), events=customEvents(st,k);
+ const {y,m}=parseKey(k), isChecked=effectiveChecked(st,k,y,m), events=customEvents(st,k);
  setSyncStatus('同步中...');
  try{
   await supabaseRequest('/rest/v1/milestones?on_conflict=user_id,milestone_month',{
@@ -270,25 +289,31 @@ async function syncMonth(k,st=load()){
   setSyncStatus('云端同步失败，已保存到本地');
  }
 }
-async function ensureCurrentMonthAutoChecked(){
- const k=currentMonthKey();
- const {y,m}=parseKey(k);
- if(!autoChecked(y,m))return;
+
+async function ensureAutoCheckedThroughCurrentMonth(){
  const st=load();
- if(!st.checks)st.checks={};
- // 如果用户手动取消过当月，不覆盖；只在没有手动记录时自动补勾。
- if(st.checks[k]!==undefined)return;
- st.checks[k]=true;
+ const changedKeys=[];
+ eachAutoMonth((k,y,m)=>{
+  if(st.manualOffs&&st.manualOffs[k])return;
+  if(st.checks[k]!==true){
+   st.checks[k]=true;
+   changedKeys.push(k);
+  }
+ });
+ st.autoPatchVersion=CONFIG.autoPatchVersion;
  save(st);
- await syncMonth(k,st);
+ if(changedKeys.length&&accessToken&&currentUser){
+  setSyncStatus('正在补齐自动勾选...');
+  for(const k of changedKeys){await syncMonth(k,st)}
+ }
 }
+
 function updateStats(){
  const today=new Date(); today.setHours(0,0,0,0); const work=new Date(CONFIG.workStart.y,CONFIG.workStart.m-1,CONFIG.workStart.d); const flex=new Date(CONFIG.flex.y,CONFIG.flex.m-1,CONFIG.flex.d); const day=86400000;
- const autoEnd=currentAutoEnd(today);
- document.getElementById('subtitle').textContent=`出生：1985年9月18日｜当前工龄：${workTenureText(today)}｜社保推算起始：2009年12月｜已自动勾选至：${autoEnd.y}年${autoEnd.m}月｜显示到55岁`;
+ document.getElementById('subtitle').textContent=`出生：1985年9月18日｜当前工龄：${workTenureText(today)}｜社保推算起始：2009年12月｜自动勾选至：${currentAutoEndText()}｜显示到55岁`;
  document.getElementById('daysToFlex').textContent=Math.max(0,Math.ceil((flex-today)/day)).toLocaleString('zh-CN')+'天';
 }
-document.getElementById('autoFill').onclick=async()=>{const st=load(); st.checks={}; save(st); render(true); await ensureCurrentMonthAutoChecked(); render(false); setSyncStatus(accessToken?'已恢复自动勾选并同步':'已保存到本地')};
+document.getElementById('autoFill').onclick=async()=>{const st=load(); st.checks={}; st.manualOffs={}; save(st); await ensureAutoCheckedThroughCurrentMonth(); render(false); setSyncStatus(accessToken?'已恢复并同步':'已保存到本地')};
 document.getElementById('editor').addEventListener('input',e=>{
  if(e.target.tagName!=='TEXTAREA')return;
  const rows=e.currentTarget.querySelector('.editorRows'), textareas=[...rows.querySelectorAll('textarea')];
